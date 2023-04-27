@@ -1,4 +1,4 @@
-FROM nginx:1.17.8-alpine
+FROM nginx:1.21-alpine
 
 EXPOSE 8000
 CMD ["/sbin/entrypoint.sh"]
@@ -14,8 +14,6 @@ ENV COMPOSER_VERSION 1.9.0
 RUN apk add --no-cache --update \
     mysql-client \
     php7 \
-    php7-apcu \
-    php7-bcmath \
     php7-ctype \
     php7-curl \
     php7-dom \
@@ -26,23 +24,20 @@ RUN apk add --no-cache --update \
     php7-intl \
     php7-json \
     php7-mbstring \
-    php7-mcrypt \
-    php7-mysqlnd \
+    php7-mysqli \
     php7-opcache \
     php7-openssl \
     php7-pdo \
-    php7-pdo_mysql \
-    php7-pdo_pgsql \
-    php7-pdo_sqlite \
+    php7-pecl-apcu \
+    php7-pgsql \
     php7-phar \
-    php7-posix \
-    php7-redis \
     php7-session \
     php7-simplexml \
     php7-soap \
     php7-sqlite3 \
     php7-tokenizer \
     php7-xml \
+    php7-xmlreader \
     php7-xmlwriter \
     php7-zip \
     php7-zlib \
@@ -51,8 +46,8 @@ RUN apk add --no-cache --update \
     postgresql-client \
     sqlite \
     sudo \
-    wget sqlite git curl bash grep \
-    supervisor
+    supervisor \
+    wget sqlite git curl bash grep
 
 # forward request and error logs to docker log collector
 RUN ln -sf /dev/stdout /var/log/nginx/access.log && \
@@ -76,11 +71,7 @@ RUN mkdir -p /var/www/html && \
     chown -R www-data:root /var/www /usr/share/nginx/cache /var/cache/nginx /var/lib/nginx/
 
 # Install composer
-RUN wget https://getcomposer.org/installer -O /tmp/composer-setup.php && \
-    wget https://composer.github.io/installer.sig -O /tmp/composer-setup.sig && \
-    php -r "if (hash('SHA384', file_get_contents('/tmp/composer-setup.php')) !== trim(file_get_contents('/tmp/composer-setup.sig'))) { unlink('/tmp/composer-setup.php'); echo 'Invalid installer' . PHP_EOL; exit(1); }" && \
-    php /tmp/composer-setup.php --version=$COMPOSER_VERSION --install-dir=bin && \
-    php -r "unlink('/tmp/composer-setup.php');"
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 
 WORKDIR /var/www/html/
 USER 1001
@@ -89,8 +80,8 @@ RUN wget ${archive_url} && \
     tar xzf ${cachet_ver}.tar.gz --strip-components=1 && \
     chown -R www-data:root /var/www/html && \
     rm -r ${cachet_ver}.tar.gz && \
-    php /bin/composer.phar global require "hirak/prestissimo:^0.3" && \
-    php /bin/composer.phar install -o && \
+    rm -f /var/www/html/composer.lock && \
+    php /usr/local/bin/composer install -o --no-plugins && \
     rm -rf bootstrap/cache/*
 
 COPY conf/php-fpm-pool.conf /etc/php7/php-fpm.d/www.conf
